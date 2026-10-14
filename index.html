@@ -1,0 +1,845 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chambers — case planning for lawyers</title>
+<meta name="description" content="Shared court-case planning for lawyers. Everyone can view; only the owner can edit.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&family=Public+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%231F3B2D'/%3E%3Cpath d='M16 6v20M9 11h14M9 11l-3 7h6zM23 11l-3 7h6zM11 26h10' stroke='%23D9B25C' stroke-width='1.8' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+<script src="config.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --green:#1F3B2D; --green-2:#2B4F3D; --green-ink:#E8EFEA;
+  --brass:#B8892B; --brass-2:#D9B25C; --jacket:#EFE6CF; --jacket-line:#D8C79F;
+  --paper:#F4F6F3; --card:#FFFFFF; --ink:#1B2420; --muted:#5C6963; --line:#DBE1DC;
+  --seal:#9E2A2B; --seal-soft:#F7E4E2; --ok:#2E6B47; --ok-soft:#E1EFE6; --amber-soft:#FBF0D6;
+  --radius-s:6px; --radius:10px;
+  --serif:"Libre Caslon Text", Georgia, serif;
+  --sans:"Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{
+    --paper:#121916; --card:#1A231F; --ink:#E6ECE8; --muted:#9AA8A1; --line:#2C3833;
+    --jacket:#2A2618; --jacket-line:#4A4128; --seal-soft:#3A1E1E; --ok-soft:#1C3326; --amber-soft:#332A15;
+    --green:#16291F; --green-2:#203B2E;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:var(--sans);font-size:15px;line-height:1.5;color:var(--ink);background:var(--paper);-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--brass);outline-offset:2px;border-radius:4px}
+h1,h2,h3{font-family:var(--serif);font-weight:400;margin:0;line-height:1.2}
+.tnum{font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.hidden{display:none!important}
+
+/* ---------- Shell ---------- */
+.shell{display:grid;grid-template-columns:240px 1fr;min-height:100vh}
+.side{background:var(--green);color:var(--green-ink);display:flex;flex-direction:column;padding:22px 16px;position:sticky;top:0;height:100vh}
+.brand{display:flex;align-items:center;gap:10px;padding:0 8px 22px;font-family:var(--serif);font-size:22px;color:#fff;text-decoration:none}
+.brand svg{flex:none}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav a{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:var(--radius-s);text-decoration:none;color:var(--green-ink);opacity:.85}
+.nav a:hover{background:rgba(255,255,255,.07);opacity:1}
+.nav a.on{background:rgba(217,178,92,.16);color:#fff;opacity:1;box-shadow:inset 3px 0 0 var(--brass-2)}
+.nav svg{width:18px;height:18px;flex:none}
+.side .new{margin:18px 0 0;justify-content:center}
+.me{margin-top:auto;border-top:1px solid rgba(255,255,255,.12);padding:14px 8px 0;font-size:13px}
+.me b{display:block;font-weight:600;color:#fff;font-size:14px}
+.me button{background:none;border:0;color:var(--brass-2);padding:0;margin-top:8px;cursor:pointer;font-size:13px}
+.demo-flag{font-size:12px;background:rgba(217,178,92,.18);color:var(--brass-2);border-radius:4px;padding:2px 6px;display:inline-block;margin-top:6px}
+.main{min-width:0;padding:32px 40px 80px;max-width:1180px}
+.topbar,.tabbar{display:none}
+
+/* ---------- Buttons & fields ---------- */
+.btn{display:inline-flex;align-items:center;gap:8px;border:1px solid transparent;border-radius:var(--radius-s);padding:9px 14px;font-weight:600;font-size:14px;cursor:pointer;text-decoration:none;line-height:1.2;background:var(--card);border-color:var(--line);color:var(--ink)}
+.btn:hover{border-color:var(--muted)}
+.btn.primary{background:var(--brass);border-color:var(--brass);color:#fff}
+.btn.primary:hover{background:#A57A24}
+.btn.dark{background:var(--green);border-color:var(--green);color:#fff}
+.btn.danger{color:var(--seal);border-color:color-mix(in srgb,var(--seal) 35%,transparent)}
+.btn.ghost{background:none;border-color:transparent;padding:6px 8px;color:var(--muted);font-weight:500}
+.btn.ghost:hover{color:var(--ink);background:color-mix(in srgb,var(--ink) 6%,transparent)}
+.btn.sm{padding:6px 10px;font-size:13px}
+.btn[disabled]{opacity:.55;cursor:not-allowed}
+label.f{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:600;color:var(--muted)}
+.inp{width:100%;border:1px solid var(--line);background:var(--card);border-radius:var(--radius-s);padding:9px 11px;font-size:15px;font-weight:400;color:var(--ink)}
+.inp:focus{outline:none;border-color:var(--brass);box-shadow:0 0 0 3px color-mix(in srgb,var(--brass) 22%,transparent)}
+textarea.inp{resize:vertical;min-height:90px;line-height:1.55}
+.hint{font-weight:400;font-size:12.5px;color:var(--muted)}
+
+/* ---------- Page heads ---------- */
+.phead{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:26px;flex-wrap:wrap}
+.phead h1{font-size:34px}
+.phead p{margin:6px 0 0;color:var(--muted)}
+
+/* ---------- Dashboard ---------- */
+.dash{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:28px}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:20px 22px}
+.panel h2{font-size:20px;margin-bottom:4px}
+.panel .sub{color:var(--muted);font-size:13.5px;margin:0 0 14px}
+.counts{display:flex;gap:28px;margin:0 0 26px;flex-wrap:wrap}
+.counts div{font-size:13.5px;color:var(--muted)}
+.counts b{display:block;font-family:var(--serif);font-size:30px;font-weight:400;color:var(--ink);line-height:1.1}
+.counts .warn b{color:var(--seal)}
+
+/* Agenda / cause list */
+.day{margin-top:16px}
+.day:first-child{margin-top:0}
+.dayhead{display:flex;align-items:baseline;gap:10px;border-bottom:1px solid var(--line);padding-bottom:6px;margin-bottom:4px}
+.dayhead h3{font-size:17px}
+.dayhead span{font-size:13px;color:var(--muted)}
+.dayhead.today h3{color:var(--brass)}
+.dayhead.over h3{color:var(--seal)}
+.row{display:grid;grid-template-columns:46px 1fr auto;gap:12px;align-items:start;padding:10px 4px;border-radius:var(--radius-s);text-decoration:none}
+a.row:hover{background:color-mix(in srgb,var(--brass) 7%,transparent)}
+.row .no{font-family:var(--serif);color:var(--muted);text-align:right;padding-top:1px}
+.row .t{font-weight:600}
+.row .m{font-size:13.5px;color:var(--muted)}
+.row .r{font-size:13px;color:var(--muted);text-align:right;white-space:nowrap}
+.kind{display:inline-block;font-size:12px;font-weight:600;border-radius:4px;padding:1px 7px;margin-right:6px;background:color-mix(in srgb,var(--ink) 7%,transparent);color:var(--ink)}
+.kind.hearing{background:var(--seal-soft);color:var(--seal)}
+.kind.task{background:var(--amber-soft);color:#8A6418}
+@media (prefers-color-scheme: dark){.kind.task{color:var(--brass-2)}}
+
+.feed .row{grid-template-columns:1fr auto}
+
+/* ---------- Case list ---------- */
+.filters{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:var(--radius-s);overflow:hidden;background:var(--card)}
+.seg button{border:0;background:none;padding:8px 14px;cursor:pointer;font-weight:600;font-size:14px;color:var(--muted)}
+.seg button.on{background:var(--green);color:#fff}
+.filters .inp{width:auto;min-width:160px}
+.filters .search{flex:1;min-width:200px}
+.table{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.trow{display:grid;grid-template-columns:minmax(0,2.4fr) minmax(0,1.5fr) 130px 150px;gap:16px;padding:14px 18px;border-top:1px solid var(--line);text-decoration:none;align-items:center}
+.trow:first-child{border-top:0}
+.trow.headr{font-size:12.5px;font-weight:600;color:var(--muted);padding-top:10px;padding-bottom:10px;background:color-mix(in srgb,var(--ink) 3%,transparent)}
+a.trow:hover{background:color-mix(in srgb,var(--brass) 6%,transparent)}
+.trow .title{font-family:var(--serif);font-size:16.5px;line-height:1.3}
+.trow .suit{font-size:13px;color:var(--muted);margin-top:2px}
+.trow .small{font-size:13.5px;color:var(--muted)}
+.owner{display:inline-flex;align-items:center;gap:7px;font-size:13.5px}
+.av{width:24px;height:24px;border-radius:50%;display:inline-grid;place-items:center;font-size:11px;font-weight:700;color:#fff;flex:none}
+.mine-dot{font-size:11.5px;font-weight:700;color:var(--ok);background:var(--ok-soft);border-radius:4px;padding:1px 6px}
+.status{display:inline-block;font-size:12px;font-weight:600;border-radius:999px;padding:2px 9px;border:1px solid var(--line)}
+.status.Open{color:var(--ok);border-color:color-mix(in srgb,var(--ok) 40%,transparent)}
+.status.Adjourned{color:#8A6418;border-color:color-mix(in srgb,var(--brass) 50%,transparent)}
+.status.Judgment.reserved,.status.reserved{color:var(--seal);border-color:color-mix(in srgb,var(--seal) 40%,transparent)}
+.status.Closed{color:var(--muted)}
+.empty{padding:40px 20px;text-align:center;color:var(--muted)}
+.empty h3{color:var(--ink);font-size:20px;margin-bottom:6px}
+
+/* ---------- Case file (the jacket) ---------- */
+.ribbon{display:flex;align-items:center;gap:10px;background:var(--amber-soft);border:1px solid color-mix(in srgb,var(--brass) 40%,transparent);color:var(--ink);border-radius:var(--radius-s);padding:10px 14px;margin-bottom:18px;font-size:14px}
+.ribbon svg{flex:none;color:var(--brass)}
+.jacket{position:relative;background:var(--jacket);border:1px solid var(--jacket-line);border-radius:4px var(--radius) var(--radius) var(--radius);padding:30px 32px 24px;margin-top:22px}
+.jacket .tab{position:absolute;top:-23px;left:-1px;background:var(--jacket);border:1px solid var(--jacket-line);border-bottom:0;border-radius:8px 8px 0 0;padding:3px 16px 2px;font-size:13px;font-weight:600;display:flex;align-items:center;gap:8px}
+.jacket .suitno{font-family:var(--serif);font-size:15px;letter-spacing:.02em;color:var(--muted)}
+.jacket h1{font-size:34px;margin:6px 0 4px;max-width:30ch}
+.jacket .court{font-size:15px;color:var(--muted)}
+.jgrid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px 22px;margin-top:22px;padding-top:18px;border-top:1px dashed var(--jacket-line)}
+.jgrid dt{font-size:12.5px;color:var(--muted);font-weight:600}
+.jgrid dd{margin:2px 0 0;font-size:15px}
+.jgrid .hear{color:var(--seal);font-weight:600}
+.jactions{display:flex;gap:8px;margin-top:20px;flex-wrap:wrap}
+.cols{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:28px;margin-top:28px}
+.sec{margin-bottom:28px}
+.sec h2{font-size:21px;margin-bottom:10px;display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.sec h2 small{font-family:var(--sans);font-size:13px;color:var(--muted)}
+.prose{white-space:pre-wrap;margin:0;line-height:1.65;max-width:68ch}
+.prose.blank{color:var(--muted);font-style:italic}
+
+/* Plan */
+.plan{list-style:none;margin:0;padding:0;background:var(--card);border:1px solid var(--line);border-radius:var(--radius)}
+.plan li{display:grid;grid-template-columns:24px 1fr auto;gap:12px;align-items:start;padding:12px 14px;border-top:1px solid var(--line)}
+.plan li:first-child{border-top:0}
+.plan input[type=checkbox]{width:18px;height:18px;margin:2px 0 0;accent-color:var(--ok)}
+.plan .pt{font-weight:600}
+.plan li.done .pt{text-decoration:line-through;color:var(--muted);font-weight:500}
+.plan .pm{font-size:13px;color:var(--muted)}
+.plan .od{color:var(--seal);font-weight:600}
+.addplan{display:grid;grid-template-columns:1fr 130px 150px auto;gap:8px;margin-top:10px}
+
+/* Notes */
+.note{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px}
+.note.mine{border-left:3px solid var(--brass)}
+.note header{display:flex;align-items:center;gap:8px;font-size:13.5px;margin-bottom:6px}
+.note header .when{color:var(--muted);margin-left:auto;font-size:12.5px}
+.note p{margin:0;white-space:pre-wrap;line-height:1.6}
+.note .acts{display:flex;gap:4px;margin-top:8px}
+.addnote{margin-bottom:16px}
+.addnote .row2{display:flex;justify-content:space-between;align-items:center;margin-top:8px;gap:10px}
+
+/* Form page */
+.form{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:24px;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:16px 18px;max-width:900px}
+.form .c6{grid-column:span 6}.form .c4{grid-column:span 4}.form .c3{grid-column:span 3}.form .c2{grid-column:span 2}
+.form fieldset{border:0;padding:0;margin:0;display:contents}
+.form .legend{grid-column:span 6;font-family:var(--serif);font-size:19px;margin-top:6px;padding-top:14px;border-top:1px solid var(--line)}
+.form .legend:first-child{margin-top:0;padding-top:0;border-top:0}
+.formacts{grid-column:span 6;display:flex;gap:10px;justify-content:flex-end;margin-top:6px}
+
+/* ---------- Auth ---------- */
+.auth{display:grid;grid-template-columns:1.1fr 1fr;min-height:100vh}
+.auth .art{background:var(--green);color:var(--green-ink);padding:56px 64px;display:flex;flex-direction:column;justify-content:space-between;position:relative;overflow:hidden}
+.auth .art h1{font-size:46px;color:#fff;max-width:13ch;line-height:1.12}
+.auth .art p{max-width:42ch;font-size:16.5px;opacity:.88;line-height:1.6}
+.auth .art .rule{display:grid;gap:10px;margin-top:26px;font-size:15px}
+.auth .art .rule div{display:flex;gap:10px;align-items:flex-start}
+.auth .art .rule svg{flex:none;color:var(--brass-2);margin-top:2px}
+.auth .art .scales{position:absolute;right:-60px;bottom:-40px;opacity:.07;width:380px;height:380px;color:#fff}
+.auth .box{display:flex;align-items:center;justify-content:center;padding:40px 24px}
+.auth .card{width:100%;max-width:400px}
+.auth .card h2{font-size:28px;margin-bottom:6px}
+.auth form{display:grid;gap:14px;margin-top:22px}
+.auth .switch{margin-top:18px;font-size:14px;color:var(--muted)}
+.auth .switch button{background:none;border:0;color:var(--brass);font-weight:600;cursor:pointer;padding:0}
+.err{background:var(--seal-soft);color:var(--seal);border-radius:var(--radius-s);padding:9px 12px;font-size:14px}
+.info{background:var(--ok-soft);color:var(--ok);border-radius:var(--radius-s);padding:9px 12px;font-size:14px}
+.demo-list{display:grid;gap:8px;margin-top:20px}
+.demo-list button{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;cursor:pointer}
+.demo-list button:hover{border-color:var(--brass)}
+.demo-list .av{width:34px;height:34px;font-size:13px}
+.demo-list small{display:block;color:var(--muted);font-size:13px}
+
+/* Toast */
+.toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);background:var(--green);color:#fff;padding:11px 18px;border-radius:var(--radius-s);font-size:14px;opacity:0;transition:opacity .2s, transform .2s;z-index:50;pointer-events:none;max-width:90vw}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.bad{background:var(--seal)}
+.loading{padding:60px;text-align:center;color:var(--muted)}
+
+/* ---------- Responsive ---------- */
+@media (max-width:980px){
+  .dash,.cols{grid-template-columns:1fr}
+  .jgrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .trow{grid-template-columns:minmax(0,1fr) 130px}
+  .trow .c-court,.trow .c-owner{display:none}
+}
+@media (max-width:760px){
+  .shell{grid-template-columns:1fr}
+  .side{display:none}
+  .topbar{display:flex;align-items:center;justify-content:space-between;background:var(--green);color:#fff;padding:12px 16px;position:sticky;top:0;z-index:10}
+  .topbar .brand{padding:0;font-size:19px}
+  .topbar .btn{padding:7px 11px}
+  .tabbar{display:grid;grid-template-columns:repeat(3,1fr);position:fixed;bottom:0;left:0;right:0;background:var(--card);border-top:1px solid var(--line);z-index:10;padding-bottom:env(safe-area-inset-bottom)}
+  .tabbar a{display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 0;font-size:12px;text-decoration:none;color:var(--muted)}
+  .tabbar a.on{color:var(--green);font-weight:700}
+  @media (prefers-color-scheme: dark){.tabbar a.on{color:var(--brass-2)}}
+  .tabbar svg{width:20px;height:20px}
+  .main{padding:20px 16px 96px}
+  .panel{padding:16px}
+  .row{grid-template-columns:40px 1fr;gap:4px 10px}
+  .row .r{grid-column:2;text-align:left}
+  .feed .row{grid-template-columns:1fr}
+  .feed .row .r{grid-column:1}
+  .phead h1{font-size:28px}
+  .jacket{padding:24px 18px 20px}
+  .jacket h1{font-size:26px}
+  .trow{grid-template-columns:1fr;gap:6px}
+  .trow.headr{display:none}
+  .trow .c-hear{font-size:13.5px}
+  .addplan{grid-template-columns:1fr 1fr}
+  .addplan input[name=title]{grid-column:span 2}
+  .form{grid-template-columns:1fr;padding:18px}
+  .form .c6,.form .c4,.form .c3,.form .c2,.form .legend,.formacts{grid-column:span 1}
+  .auth{grid-template-columns:1fr}
+  .auth .art{padding:36px 22px}
+  .auth .art h1{font-size:34px}
+  .filters .inp{min-width:0;flex:1}
+  .counts{gap:20px}
+}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div id="app"><div class="loading">Opening chambers…</div></div>
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script>
+/* =====================================================================
+   Chambers — shared case planning for lawyers
+   Rule: every signed-in lawyer can view everything; you can edit only
+   what you own. Enforced by Supabase Row Level Security (schema.sql)
+   and mirrored in the interface. Demo mode mirrors the same rules.
+   ===================================================================== */
+const CFG = window.CHAMBERS_CONFIG || {};
+const FORCE_DEMO = new URLSearchParams(location.search).has('demo');
+const DEMO = FORCE_DEMO || !(CFG.supabaseUrl && CFG.supabaseAnonKey);
+
+const COURTS = [
+  'Supreme Court, Accra','Court of Appeal, Accra','Court of Appeal, Kumasi',
+  'High Court (Commercial Division), Accra','High Court (Land Division), Accra','High Court (Family Division), Accra',
+  'High Court (Labour Division), Accra','High Court (General Jurisdiction), Accra','High Court, Kumasi','High Court, Takoradi',
+  'Circuit Court, Accra','Circuit Court, Tema','District Court, Accra'
+];
+const TYPES = ['Civil','Commercial','Criminal','Land','Family','Labour','Constitutional','Probate'];
+const STATUSES = ['Open','Adjourned','Judgment reserved','Closed'];
+const ROLES = ['Plaintiff','Defendant','Applicant','Respondent','Appellant','Petitioner','Accused','Complainant'];
+const KINDS = ['Filing','Hearing prep','Research','Client meeting','Witness','Correspondence','Other'];
+
+/* ---------------- helpers ---------------- */
+const $ = (s, el=document) => el.querySelector(s);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id-' + Math.random().toString(36).slice(2) + Date.now().toString(36));
+const todayISO = () => { const d = new Date(); return new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,10); };
+const addDays = (iso, n) => { const d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + n); return d.toISOString().slice(0,10); };
+const daysBetween = (a, b) => Math.round((new Date(b+'T12:00:00') - new Date(a+'T12:00:00')) / 86400000);
+const fmtDate = (iso, opts={weekday:'short', day:'numeric', month:'short'}) => iso ? new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', opts) : '';
+const fmtLong = iso => fmtDate(iso, {weekday:'long', day:'numeric', month:'long', year:'numeric'});
+const relDay = iso => { const n = daysBetween(todayISO(), iso); return n === 0 ? 'Today' : n === 1 ? 'Tomorrow' : n === -1 ? 'Yesterday' : n < 0 ? `${-n} days ago` : `In ${n} days`; };
+const fmtWhen = ts => { const d = new Date(ts); const diff = (Date.now() - d) / 1000;
+  if (diff < 60) return 'just now'; if (diff < 3600) return Math.floor(diff/60) + ' min ago';
+  if (diff < 86400) return Math.floor(diff/3600) + ' h ago';
+  return d.toLocaleDateString('en-GB', {day:'numeric', month:'short'}) + ', ' + d.toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'}); };
+const initials = n => (n||'?').split(/\s+/).filter(Boolean).slice(0,2).map(w => w[0]).join('').toUpperCase();
+const AV_COLORS = ['#2B4F3D','#7A5A1E','#5B3A5E','#2D4C6B','#8A3B2B','#3F5F3A','#4A4A6A'];
+const avColor = id => { let h = 0; for (const c of String(id)) h = (h*31 + c.charCodeAt(0)) >>> 0; return AV_COLORS[h % AV_COLORS.length]; };
+const avatar = p => `<span class="av" style="background:${avColor(p?.id)}" aria-hidden="true">${esc(initials(p?.full_name))}</span>`;
+function toast(msg, bad=false){ const t = $('#toast'); t.textContent = msg; t.className = 'toast show' + (bad ? ' bad' : ''); clearTimeout(toast._t); toast._t = setTimeout(() => t.className = 'toast', 2600); }
+
+const ICON = {
+  dash:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-3H4zM14 7h6V4h-6z"/></svg>',
+  cases:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>',
+  list:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M4 10h16M9 3v4M15 3v4M8 14h3M8 17h6"/></svg>',
+  plus:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>',
+  lock:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>',
+  check:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12l5 5L20 7"/></svg>',
+  scales:'<svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"><path d="M16 5v22M8 10h16M8 10l-4 8h8zM24 10l-4 8h8zM11 27h10M16 5l-1 1M16 5l1 1"/></svg>',
+};
+const BRAND = `<svg width="28" height="28" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="rgba(255,255,255,.08)"/><path d="M16 6v20M9 11h14M9 11l-3 7h6zM23 11l-3 7h6zM11 26h10" stroke="#D9B25C" stroke-width="1.8" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+/* =====================================================================
+   DATA LAYER — same API for Supabase and demo mode
+   ===================================================================== */
+const DENY = what => { throw new Error(`Only the owner can change this ${what}.`); };
+
+/* ---------- Demo store (browser only) ---------- */
+const DemoStore = (() => {
+  const KEY = 'chambers_demo_v1', SKEY = 'chambers_demo_session';
+  function seed(){
+    const t = todayISO(), d = n => addDays(t, n);
+    const ago = h => new Date(Date.now() - h*3600000).toISOString();
+    const P = [
+      {id:'u-ama',   full_name:'Ama Owusu-Ansah', firm:'Owusu-Ansah & Co.',      email:'ama@chambers.demo'},
+      {id:'u-kwame', full_name:'Kwame Boateng',   firm:'Boateng Legal Consult',  email:'kwame@chambers.demo'},
+      {id:'u-efua',  full_name:'Efua Mensah',     firm:'Sankofa Chambers',       email:'efua@chambers.demo'},
+    ];
+    const C = (o) => Object.assign({judge:'', hearing_time:'', summary:'', strategy:'', created_at:ago(400), updated_at:ago(30)}, o);
+    const cases = [
+      C({id:'c1', owner_id:'u-ama', title:'Adjei Holdings Ltd v. Coastal Cement Co. Ltd', suit_number:'CM/BFS/0412/2026', court:'High Court (Commercial Division), Accra', judge:'Justice N. Asare', case_type:'Commercial', status:'Open', client:'Adjei Holdings Ltd', client_role:'Plaintiff', opposing_party:'Coastal Cement Co. Ltd', next_hearing:d(2), hearing_time:'09:00',
+        summary:'Claim for GH₵ 2.4m for breach of a cement supply agreement. Defendant failed to deliver three consignments between March and May 2026 and refused to refund the advance payment.',
+        strategy:'Lead with the signed delivery schedule and the bank transfer records. Push for summary judgment on the advance payment; argue damages separately. Defence will rely on the force majeure clause — prepare authorities showing port congestion is a foreseeable commercial risk.', updated_at:ago(3)}),
+      C({id:'c2', owner_id:'u-ama', title:'The Republic v. Kofi Darteh', suit_number:'CR/TM/0087/2026', court:'Circuit Court, Tema', judge:'His Honour E. Quaye', case_type:'Criminal', status:'Adjourned', client:'Kofi Darteh', client_role:'Accused', opposing_party:'The Republic', next_hearing:d(6), hearing_time:'10:00',
+        summary:'Charge of fraud by false pretences (GH₵ 45,000) arising from a vehicle sale. Accused maintains the buyer knew the car was under a hire-purchase agreement.',
+        strategy:'Challenge the investigation caution statement — it was taken without counsel present. Two witnesses can confirm the buyer was shown the hire-purchase papers.', updated_at:ago(28)}),
+      C({id:'c3', owner_id:'u-kwame', title:'Nii Lartey Family v. Osu Traditional Council', suit_number:'LD/0233/2025', court:'High Court (Land Division), Accra', judge:'Justice R. Ampofo', case_type:'Land', status:'Open', client:'Nii Lartey Family', client_role:'Plaintiff', opposing_party:'Osu Traditional Council', next_hearing:d(1), hearing_time:'10:30',
+        summary:'Declaration of title to 4.2 acres at Osu Ako Adjei. Family claims customary grant from 1958; Council claims the land was never alienated.',
+        strategy:'Survey plan from the Lands Commission is the anchor. Call the two oldest family elders as witnesses on the 1958 grant ceremony. Prepare for a site inspection request.', updated_at:ago(6)}),
+      C({id:'c4', owner_id:'u-kwame', title:'Mensah v. Mensah', suit_number:'DVC/0154/2026', court:'High Court (Family Division), Accra', judge:'Justice P. Owusu', case_type:'Family', status:'Open', client:'Abena Mensah', client_role:'Petitioner', opposing_party:'Yaw Mensah', next_hearing:d(9), hearing_time:'09:30',
+        summary:'Petition for divorce, custody of two children and settlement of the matrimonial home at Adenta.',
+        strategy:'Mediation first — the court has signalled it prefers settlement. Keep custody and property issues separate.', updated_at:ago(50)}),
+      C({id:'c5', owner_id:'u-efua', title:'Asante v. Volta Logistics Ltd', suit_number:'LAB/0061/2026', court:'High Court (Labour Division), Accra', judge:'Justice K. Frimpong', case_type:'Labour', status:'Judgment reserved', client:'Daniel Asante', client_role:'Plaintiff', opposing_party:'Volta Logistics Ltd', next_hearing:d(20), hearing_time:'11:00',
+        summary:'Unfair termination after 11 years of service; no disciplinary hearing was held. Claim for compensation and end-of-service benefits.',
+        strategy:'Written addresses filed. Await judgment; prepare a schedule of benefits in case the court asks for computation.', updated_at:ago(70)}),
+      C({id:'c6', owner_id:'u-efua', title:'Ghana Agro Exports Ltd v. Kumasi Freight Services', suit_number:'H1/0098/2026', court:'Court of Appeal, Kumasi', judge:'Panel of three', case_type:'Commercial', status:'Open', client:'Ghana Agro Exports Ltd', client_role:'Appellant', opposing_party:'Kumasi Freight Services', next_hearing:d(13), hearing_time:'09:00',
+        summary:'Appeal against the High Court ruling that limited carrier liability for spoiled cocoa shipments to the bill of lading value.',
+        strategy:'Ground 1: the limitation clause was not incorporated. Ground 2: gross negligence excludes limitation. Record of appeal is complete.', updated_at:ago(12)}),
+      C({id:'c7', owner_id:'u-ama', title:'Boadu v. Unity Microfinance Ltd', suit_number:'SC/CV/0019/2025', court:'Circuit Court, Accra', judge:'Her Honour A. Nyarko', case_type:'Civil', status:'Closed', client:'Grace Boadu', client_role:'Plaintiff', opposing_party:'Unity Microfinance Ltd', next_hearing:null, hearing_time:'',
+        summary:'Recovery of locked-up deposits. Settled out of court in August 2026; terms of settlement adopted as judgment.', strategy:'', updated_at:ago(900)}),
+    ];
+    const PI = (o) => Object.assign({id:uid(), done:false, created_at:ago(100), updated_at:ago(10)}, o);
+    const plan = [
+      PI({case_id:'c1', owner_id:'u-ama', title:'File motion for summary judgment', kind:'Filing', due_date:d(-1)}),
+      PI({case_id:'c1', owner_id:'u-ama', title:'Prepare bundle of delivery schedules and bank records', kind:'Hearing prep', due_date:d(1)}),
+      PI({case_id:'c1', owner_id:'u-ama', title:'Research force majeure authorities (port congestion)', kind:'Research', due_date:d(1)}),
+      PI({case_id:'c1', owner_id:'u-ama', title:'Serve writ and statement of claim', kind:'Filing', due_date:d(-40), done:true}),
+      PI({case_id:'c2', owner_id:'u-ama', title:'Interview the two defence witnesses', kind:'Witness', due_date:d(4)}),
+      PI({case_id:'c2', owner_id:'u-ama', title:'Request disclosure of police investigation docket', kind:'Correspondence', due_date:d(3)}),
+      PI({case_id:'c3', owner_id:'u-kwame', title:'Collect certified survey plan from Lands Commission', kind:'Research', due_date:d(0)}),
+      PI({case_id:'c3', owner_id:'u-kwame', title:'Prepare elders’ witness statements', kind:'Witness', due_date:d(5)}),
+      PI({case_id:'c4', owner_id:'u-kwame', title:'Client meeting — custody arrangements', kind:'Client meeting', due_date:d(3)}),
+      PI({case_id:'c6', owner_id:'u-efua', title:'File written submissions', kind:'Filing', due_date:d(7)}),
+      PI({case_id:'c6', owner_id:'u-efua', title:'Compile authorities on incorporation of terms', kind:'Research', due_date:d(4)}),
+      PI({case_id:'c5', owner_id:'u-efua', title:'Draft schedule of end-of-service benefits', kind:'Research', due_date:d(11)}),
+    ];
+    const N = (o) => Object.assign({id:uid()}, o);
+    const notes = [
+      N({case_id:'c1', owner_id:'u-ama', body:'Client confirmed they have the original receipts for all three advance payments. Collect on Friday.', created_at:ago(26), updated_at:ago(26)}),
+      N({case_id:'c1', owner_id:'u-kwame', body:'I appeared before Justice Asare last month. She expects written submissions filed at least three days before the hearing and is strict about bundles being paginated.', created_at:ago(5), updated_at:ago(5)}),
+      N({case_id:'c3', owner_id:'u-kwame', body:'Opposing counsel hinted at settlement talks. Client is open to it only if the family keeps the frontage plots.', created_at:ago(9), updated_at:ago(9)}),
+      N({case_id:'c3', owner_id:'u-efua', body:'We have the 1962 Osu stool lands gazette in our library if you need it for the history of the grant.', created_at:ago(4), updated_at:ago(4)}),
+      N({case_id:'c6', owner_id:'u-efua', body:'Record of appeal received and checked. Pages 140–162 (cross-examination of the captain) are the key part.', created_at:ago(40), updated_at:ago(40)}),
+      N({case_id:'c2', owner_id:'u-ama', body:'Prosecution has not yet served the witness statements. Raise this at the next sitting.', created_at:ago(30), updated_at:ago(30)}),
+    ];
+    return {profiles:P, cases, plan, notes, seededFor:t};
+  }
+  let db;
+  function load(){ try { db = JSON.parse(localStorage.getItem(KEY)); } catch(e) { db = null; } if (!db) { db = seed(); save(); } }
+  function save(){ try { localStorage.setItem(KEY, JSON.stringify(db)); } catch(e){} }
+  load();
+  let me = null; try { const s = localStorage.getItem(SKEY); if (s) me = db.profiles.find(p => p.id === s) || null; } catch(e){}
+  const need = () => { if (!me) throw new Error('Please sign in.'); };
+  const now = () => new Date().toISOString();
+  const byId = (arr, id) => arr.find(x => x.id === id);
+  return {
+    demoUsers: () => db.profiles,
+    reset(){ localStorage.removeItem(KEY); load(); },
+    async session(){ return me; },
+    async signIn(email, pw){
+      const p = db.profiles.find(x => x.email.toLowerCase() === String(email).trim().toLowerCase());
+      if (!p || pw !== 'demo1234') throw new Error('Email or password is incorrect. In the demo, the password for every account is demo1234.');
+      me = p; localStorage.setItem(SKEY, p.id); return p;
+    },
+    async signInAs(id){ me = byId(db.profiles, id); localStorage.setItem(SKEY, id); return me; },
+    async signUp(email, pw, full_name, firm){
+      if (db.profiles.some(x => x.email.toLowerCase() === email.toLowerCase())) throw new Error('An account with this email already exists.');
+      if (pw.length < 8) throw new Error('Use a password of at least 8 characters.');
+      const p = {id:uid(), full_name, firm, email}; db.profiles.push(p); save();
+      me = p; localStorage.setItem(SKEY, p.id); return {user:p};
+    },
+    async signOut(){ me = null; localStorage.removeItem(SKEY); },
+    async profiles(){ need(); return db.profiles.slice(); },
+    async cases(){ need(); return db.cases.slice(); },
+    async allPlan(){ need(); return db.plan.slice(); },
+    async notesFor(caseId){ need(); return db.notes.filter(n => n.case_id === caseId); },
+    async recentNotes(){ need(); return db.notes.slice(); },
+    async saveCase(c){
+      need();
+      if (c.id){ const ex = byId(db.cases, c.id); if (!ex) throw new Error('Case not found.'); if (ex.owner_id !== me.id) DENY('case');
+        Object.assign(ex, c, {owner_id:ex.owner_id, updated_at:now()}); save(); return ex; }
+      const n = Object.assign({}, c, {id:uid(), owner_id:me.id, created_at:now(), updated_at:now()}); db.cases.push(n); save(); return n;
+    },
+    async deleteCase(id){ need(); const ex = byId(db.cases, id); if (!ex || ex.owner_id !== me.id) DENY('case');
+      db.cases = db.cases.filter(x => x.id !== id); db.plan = db.plan.filter(x => x.case_id !== id); db.notes = db.notes.filter(x => x.case_id !== id); save(); },
+    async addPlan(it){ need(); const c = byId(db.cases, it.case_id); if (!c || c.owner_id !== me.id) DENY('case plan');
+      const n = Object.assign({done:false}, it, {id:uid(), owner_id:me.id, created_at:now(), updated_at:now()}); db.plan.push(n); save(); return n; },
+    async updatePlan(id, patch){ need(); const ex = byId(db.plan, id); if (!ex || ex.owner_id !== me.id) DENY('plan step');
+      Object.assign(ex, patch, {updated_at:now()}); save(); return ex; },
+    async deletePlan(id){ need(); const ex = byId(db.plan, id); if (!ex || ex.owner_id !== me.id) DENY('plan step');
+      db.plan = db.plan.filter(x => x.id !== id); save(); },
+    async addNote(caseId, body){ need(); const n = {id:uid(), case_id:caseId, owner_id:me.id, body, created_at:now(), updated_at:now()}; db.notes.push(n); save(); return n; },
+    async updateNote(id, body){ need(); const ex = byId(db.notes, id); if (!ex || ex.owner_id !== me.id) DENY('note');
+      ex.body = body; ex.updated_at = now(); save(); return ex; },
+    async deleteNote(id){ need(); const ex = byId(db.notes, id); if (!ex || ex.owner_id !== me.id) DENY('note');
+      db.notes = db.notes.filter(x => x.id !== id); save(); },
+  };
+})();
+
+/* ---------- Supabase store ---------- */
+const SupaStore = (() => {
+  if (DEMO) return null;
+  const sb = window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseAnonKey);
+  const ok = ({data, error}) => { if (error) throw new Error(friendly(error)); return data; };
+  function friendly(e){
+    const m = e.message || String(e);
+    if (/row-level security|permission denied|violates/i.test(m)) return 'Only the owner can change this.';
+    if (/Invalid login/i.test(m)) return 'Email or password is incorrect.';
+    if (/Email not confirmed/i.test(m)) return 'Confirm your email first — check your inbox for the link.';
+    return m;
+  }
+  let me = null;
+  async function loadMe(user){
+    if (!user) { me = null; return null; }
+    const {data} = await sb.from('profiles').select('*').eq('id', user.id).maybeSingle();
+    me = data || {id:user.id, full_name:user.user_metadata?.full_name || user.email, firm:user.user_metadata?.firm || '', email:user.email};
+    return me;
+  }
+  const clean = c => { const o = {...c}; delete o.id; delete o.owner_id; delete o.created_at; delete o.updated_at; if (!o.next_hearing) o.next_hearing = null; return o; };
+  return {
+    client: sb,
+    async session(){ const {data} = await sb.auth.getSession(); return loadMe(data.session?.user); },
+    async signIn(email, pw){ const d = ok(await sb.auth.signInWithPassword({email, password:pw})); return loadMe(d.user); },
+    async signUp(email, pw, full_name, firm){
+      const d = ok(await sb.auth.signUp({email, password:pw, options:{data:{full_name, firm}, emailRedirectTo:location.origin}}));
+      if (d.session) { await loadMe(d.user); return {user:me}; }
+      return {confirm:true};
+    },
+    async signOut(){ await sb.auth.signOut(); me = null; },
+    async profiles(){ return ok(await sb.from('profiles').select('id,full_name,firm,email')); },
+    async cases(){ return ok(await sb.from('cases').select('*').order('updated_at', {ascending:false})); },
+    async allPlan(){ return ok(await sb.from('plan_items').select('*')); },
+    async notesFor(caseId){ return ok(await sb.from('notes').select('*').eq('case_id', caseId)); },
+    async recentNotes(){ return ok(await sb.from('notes').select('*').order('created_at', {ascending:false}).limit(20)); },
+    async saveCase(c){
+      if (c.id) { const rows = ok(await sb.from('cases').update(clean(c)).eq('id', c.id).select()); if (!rows.length) DENY('case'); return rows[0]; }
+      return ok(await sb.from('cases').insert({...clean(c), owner_id:me.id}).select().single());
+    },
+    async deleteCase(id){ const rows = ok(await sb.from('cases').delete().eq('id', id).select('id')); if (!rows.length) DENY('case'); },
+    async addPlan(it){ return ok(await sb.from('plan_items').insert({...it, owner_id:me.id}).select().single()); },
+    async updatePlan(id, patch){ const rows = ok(await sb.from('plan_items').update(patch).eq('id', id).select()); if (!rows.length) DENY('plan step'); return rows[0]; },
+    async deletePlan(id){ const rows = ok(await sb.from('plan_items').delete().eq('id', id).select('id')); if (!rows.length) DENY('plan step'); },
+    async addNote(caseId, body){ return ok(await sb.from('notes').insert({case_id:caseId, body, owner_id:me.id}).select().single()); },
+    async updateNote(id, body){ const rows = ok(await sb.from('notes').update({body}).eq('id', id).select()); if (!rows.length) DENY('note'); return rows[0]; },
+    async deleteNote(id){ const rows = ok(await sb.from('notes').delete().eq('id', id).select('id')); if (!rows.length) DENY('note'); },
+  };
+})();
+
+const API = DEMO ? DemoStore : SupaStore;
+
+/* =====================================================================
+   STATE + ROUTER
+   ===================================================================== */
+const S = { me:null, profiles:{}, cases:[], plan:[], listScope:'all', q:'', fStatus:'', fCourt:'', causeScope:'all', authMode:'in' };
+const prof = id => S.profiles[id] || {id, full_name:'Unknown lawyer', firm:''};
+const isMine = row => row && S.me && row.owner_id === S.me.id;
+const caseById = id => S.cases.find(c => c.id === id);
+
+async function refresh(){
+  const [ps, cs, pl] = await Promise.all([API.profiles(), API.cases(), API.allPlan()]);
+  S.profiles = Object.fromEntries(ps.map(p => [p.id, p])); S.cases = cs; S.plan = pl;
+}
+
+function route(){ const h = location.hash.replace(/^#\/?/, ''); const [a, b, c] = h.split('/'); return {a: a || 'dashboard', b, c}; }
+window.addEventListener('hashchange', render);
+
+async function boot(){
+  try { S.me = await API.session(); } catch(e) { S.me = null; }
+  if (!DEMO) SupaStore.client.auth.onAuthStateChange((ev, sess) => { if (ev === 'SIGNED_OUT') { S.me = null; render(); } });
+  render();
+}
+
+async function render(){
+  const app = $('#app');
+  if (!S.me) { app.innerHTML = authView(); return; }
+  try { await refresh(); } catch(e) { app.innerHTML = shell(`<div class="empty"><h3>Could not load cases</h3><p>${esc(e.message)}</p><button class="btn" data-act="reload">Try again</button></div>`); return; }
+  const r = route(); let body;
+  if (r.a === 'cases') body = casesView();
+  else if (r.a === 'cause-list') body = causeListView();
+  else if (r.a === 'new') body = formView(null);
+  else if (r.a === 'case' && r.c === 'edit') body = formView(caseById(r.b));
+  else if (r.a === 'case') body = await caseView(r.b);
+  else body = dashView();
+  app.innerHTML = shell(body, r.a);
+  window.scrollTo(0, 0);
+  const f = $('#main [autofocus]'); if (f) f.focus();
+}
+
+/* =====================================================================
+   VIEWS
+   ===================================================================== */
+function shell(body, active){
+  const nav = (href, key, icon, label) => `<a href="#/${href}" class="${active === key ? 'on' : ''}" ${active === key ? 'aria-current="page"' : ''}>${icon}<span>${label}</span></a>`;
+  return `
+  <div class="topbar"><a class="brand" href="#/dashboard">${BRAND}Chambers</a><a class="btn primary sm" href="#/new">${ICON.plus}New case</a></div>
+  <div class="shell">
+    <aside class="side" aria-label="Main">
+      <a class="brand" href="#/dashboard">${BRAND}Chambers</a>
+      <nav class="nav">
+        ${nav('dashboard','dashboard',ICON.dash,'Dashboard')}
+        ${nav('cases','cases',ICON.cases,'Cases')}
+        ${nav('cause-list','cause-list',ICON.list,'Cause list')}
+      </nav>
+      <a class="btn primary new" href="#/new">${ICON.plus}New case</a>
+      <div class="me"><b>${esc(S.me.full_name)}</b>${esc(S.me.firm || S.me.email)}
+        ${DEMO ? '<div><span class="demo-flag">Demo data · this browser only</span></div>' : ''}
+        <div><button data-act="signout">Sign out</button>${DEMO ? ' &nbsp; <button data-act="reset-demo">Reset demo</button>' : ''}</div></div>
+    </aside>
+    <main class="main" id="main">${body}</main>
+  </div>
+  <nav class="tabbar" aria-label="Main">
+    ${nav('dashboard','dashboard',ICON.dash,'Dashboard')}${nav('cases','cases',ICON.cases,'Cases')}${nav('cause-list','cause-list',ICON.list,'Cause list')}
+  </nav>`;
+}
+
+/* ---- Auth ---- */
+function authView(){
+  const m = S.authMode;
+  const rule = `<div class="rule">
+      <div>${ICON.check}<span>See every case your colleagues are handling, with their plans and notes.</span></div>
+      <div>${ICON.check}<span>Plan your own cases: hearings, filings, research and client meetings.</span></div>
+      <div>${ICON.lock}<span>Only you can edit your cases and notes. Everyone else can view them.</span></div></div>`;
+  const demo = DEMO ? `<div class="info" style="margin-top:18px">This is a demo with sample lawyers and cases. Choose a lawyer to sign in as — then try opening a colleague’s case to see view-only mode.</div>
+      <div class="demo-list">${DemoStore.demoUsers().slice(0,3).map(p => `<button data-act="demo-as" data-id="${p.id}">${avatar(p)}<span><b>${esc(p.full_name)}</b><small>${esc(p.firm)}</small></span></button>`).join('')}</div>
+      <p class="switch">Or sign in with email below (password <b>demo1234</b>).</p>` : '';
+  const form = m === 'in' ? `
+      <form data-form="signin">
+        <label class="f">Email<input class="inp" type="email" name="email" required autocomplete="email"></label>
+        <label class="f">Password<input class="inp" type="password" name="password" required autocomplete="current-password"></label>
+        <div id="auth-msg"></div>
+        <button class="btn primary" type="submit" style="justify-content:center">Sign in</button>
+      </form>
+      <p class="switch">New to Chambers? <button data-act="auth-mode" data-m="up">Create an account</button></p>` : `
+      <form data-form="signup">
+        <label class="f">Full name<input class="inp" name="full_name" required autocomplete="name"></label>
+        <label class="f">Firm or chambers<input class="inp" name="firm" autocomplete="organization"></label>
+        <label class="f">Email<input class="inp" type="email" name="email" required autocomplete="email"></label>
+        <label class="f">Password<input class="inp" type="password" name="password" required minlength="8" autocomplete="new-password"><span class="hint">At least 8 characters.</span></label>
+        <div id="auth-msg"></div>
+        <button class="btn primary" type="submit" style="justify-content:center">Create account</button>
+      </form>
+      <p class="switch">Already have an account? <button data-act="auth-mode" data-m="in">Sign in</button></p>`;
+  return `<div class="auth">
+    <section class="art">
+      <a class="brand" style="padding:0" href="#/">${BRAND}Chambers</a>
+      <div><h1>Plan every case. Share every file.</h1>
+        <p>A shared workspace where lawyers track court cases, plan what happens before each hearing, and learn from each other’s notes.</p>${rule}</div>
+      <span class="muted" style="color:var(--green-ink);opacity:.6;font-size:13px">Built for chambers and law firms.</span>
+      <div class="scales">${ICON.scales}</div>
+    </section>
+    <section class="box"><div class="card">
+      <h2>${m === 'in' ? 'Sign in' : 'Create your account'}</h2>
+      <p class="muted" style="margin:0">${m === 'in' ? 'Welcome back to your chambers.' : 'Your cases stay editable only by you.'}</p>
+      ${m === 'in' ? demo : ''}${form}
+    </div></section></div>`;
+}
+
+/* ---- Agenda helpers ---- */
+function agendaItems(scope, from, to){
+  const items = [];
+  for (const c of S.cases) {
+    if (!c.next_hearing || c.status === 'Closed') continue;
+    if (scope === 'mine' && !isMine(c)) continue;
+    if (from && c.next_hearing < from) continue; if (to && c.next_hearing > to) continue;
+    items.push({type:'hearing', date:c.next_hearing, time:c.hearing_time || '', c});
+  }
+  return items;
+}
+function taskItems(scope, to){
+  return S.plan.filter(p => !p.done && p.due_date && (scope !== 'mine' || isMine(p)) && (!to || p.due_date <= to))
+    .map(p => ({type:'task', date:p.due_date, time:'', p, c:caseById(p.case_id)})).filter(x => x.c);
+}
+function groupByDate(items){
+  const g = {}; for (const it of items) (g[it.date] ||= []).push(it);
+  return Object.keys(g).sort().map(d => ({date:d, items:g[d].sort((a,b) => (a.type === b.type ? 0 : a.type === 'hearing' ? -1 : 1) || (a.time||'').localeCompare(b.time||''))}));
+}
+function dayHead(date, count, label){
+  const t = todayISO(); const cls = date === t ? 'today' : date < t ? 'over' : '';
+  return `<div class="dayhead ${cls}"><h3>${date < t ? 'Overdue' : esc(fmtDate(date,{weekday:'long', day:'numeric', month:'long'}))}</h3><span>${date < t ? '' : esc(relDay(date)) + ' · '}${count} ${label}</span></div>`;
+}
+
+/* ---- Dashboard ---- */
+function dashView(){
+  const t = todayISO(), end = addDays(t, 14);
+  const mine = S.cases.filter(isMine), active = mine.filter(c => c.status !== 'Closed');
+  const hearings = agendaItems('mine', t, end);
+  let tasks = taskItems('mine', end);
+  const overdue = tasks.filter(x => x.date < t);
+  // fold overdue tasks into one group
+  const items = [...hearings, ...tasks.map(x => x.date < t ? {...x, date:addDays(t,-1)} : x)];
+  const groups = groupByDate(items);
+  const first = S.me.full_name.split(' ')[0];
+  const hour = new Date().getHours(); const greet = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+
+  const week = groups.length ? groups.map(g => `<div class="day">${dayHead(g.date, g.items.length, g.items.length === 1 ? 'item' : 'items')}
+      ${g.items.map(it => it.type === 'hearing'
+        ? `<a class="row" href="#/case/${it.c.id}"><span class="no">${it.time ? esc(it.time) : '·'}</span><span><span class="kind hearing">Hearing</span><span class="t">${esc(it.c.title)}</span><div class="m">${esc(it.c.court)}${it.c.judge ? ' · ' + esc(it.c.judge) : ''}</div></span><span class="r">${esc(it.c.suit_number)}</span></a>`
+        : `<a class="row" href="#/case/${it.c.id}"><span class="no"></span><span><span class="kind task">${esc(it.p.kind)}</span><span class="t">${esc(it.p.title)}</span><div class="m">${esc(it.c.title)}</div></span><span class="r ${it.p.due_date < t ? 'od' : ''}" style="${it.p.due_date < t ? 'color:var(--seal);font-weight:600' : ''}">${it.p.due_date < t ? 'Due ' + esc(fmtDate(it.p.due_date)) : ''}</span></a>`).join('')}</div>`).join('')
+    : `<div class="empty"><h3>Nothing in the next two weeks</h3><p>Add a hearing date or plan steps to your cases and they will appear here.</p><a class="btn primary" href="#/new">${ICON.plus}New case</a></div>`;
+
+  // activity across chambers: recently updated cases by others + notes
+  const recent = S.cases.slice().sort((a,b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 6);
+  const feed = recent.map(c => { const p = prof(c.owner_id); return `<a class="row" href="#/case/${c.id}"><span><span class="t" style="font-family:var(--serif);font-weight:400">${esc(c.title)}</span><div class="m">${isMine(c) ? 'You' : esc(p.full_name)} · updated ${esc(fmtWhen(c.updated_at))}</div></span><span class="r"><span class="status ${esc(c.status)}">${esc(c.status)}</span></span></a>`; }).join('');
+
+  return `<div class="phead"><div><h1>${greet}, ${esc(first)}</h1><p>${esc(fmtLong(t))}</p></div></div>
+    <div class="counts">
+      <div><b class="tnum">${active.length}</b>Your active cases</div>
+      <div><b class="tnum">${hearings.length}</b>Hearings in 14 days</div>
+      <div class="${overdue.length ? 'warn' : ''}"><b class="tnum">${overdue.length}</b>Overdue plan steps</div>
+      <div><b class="tnum">${S.cases.length}</b>Cases across chambers</div>
+    </div>
+    <div class="dash">
+      <section class="panel"><h2>Your next two weeks</h2><p class="sub">Hearings and plan steps on cases you own.</p>${week}</section>
+      <section class="panel feed"><h2>Across chambers</h2><p class="sub">Recently updated cases. Open any file to read it.</p>${feed || '<p class="muted">No cases yet.</p>'}</section>
+    </div>`;
+}
+
+/* ---- Case list ---- */
+function casesView(){
+  const q = S.q.trim().toLowerCase();
+  let list = S.cases.filter(c => (S.listScope === 'all' || isMine(c))
+    && (!S.fStatus || c.status === S.fStatus) && (!S.fCourt || c.court === S.fCourt)
+    && (!q || [c.title, c.suit_number, c.court, c.client, c.opposing_party, c.judge, prof(c.owner_id).full_name].join(' ').toLowerCase().includes(q)));
+  list.sort((a,b) => (a.status === 'Closed') - (b.status === 'Closed') || (a.next_hearing || '9999').localeCompare(b.next_hearing || '9999'));
+  const courts = [...new Set(S.cases.map(c => c.court).filter(Boolean))].sort();
+  const rows = list.map(c => { const p = prof(c.owner_id); return `<a class="trow" href="#/case/${c.id}">
+      <div><div class="title">${esc(c.title)}</div><div class="suit">${esc(c.suit_number)} · ${esc(c.case_type)} · <span class="status ${esc(c.status)}">${esc(c.status)}</span></div></div>
+      <div class="small c-court">${esc(c.court)}</div>
+      <div class="small c-hear tnum">${c.next_hearing && c.status !== 'Closed' ? `<b style="color:var(--ink)">${esc(fmtDate(c.next_hearing))}</b><br>${esc(relDay(c.next_hearing))}` : '—'}</div>
+      <div class="owner c-owner">${avatar(p)}<span>${isMine(c) ? '<span class="mine-dot">You</span>' : esc(p.full_name)}</span></div></a>`; }).join('');
+  return `<div class="phead"><div><h1>Cases</h1><p>${S.cases.length} cases in chambers · ${S.cases.filter(isMine).length} are yours</p></div><a class="btn primary" href="#/new">${ICON.plus}New case</a></div>
+    <div class="filters">
+      <div class="seg" role="group" aria-label="Whose cases"><button class="${S.listScope === 'all' ? 'on' : ''}" data-act="scope" data-v="all">Everyone</button><button class="${S.listScope === 'mine' ? 'on' : ''}" data-act="scope" data-v="mine">Mine</button></div>
+      <input class="inp search" type="search" placeholder="Search by party, suit number, court or lawyer" value="${esc(S.q)}" data-input="q" aria-label="Search cases">
+      <select class="inp" data-input="fStatus" aria-label="Status"><option value="">All statuses</option>${STATUSES.map(s => `<option ${S.fStatus === s ? 'selected' : ''}>${s}</option>`).join('')}</select>
+      <select class="inp" data-input="fCourt" aria-label="Court"><option value="">All courts</option>${courts.map(s => `<option ${S.fCourt === s ? 'selected' : ''}>${esc(s)}</option>`).join('')}</select>
+    </div>
+    <div class="table">${list.length ? `<div class="trow headr"><div>Case</div><div class="c-court">Court</div><div>Next hearing</div><div class="c-owner">Lawyer</div></div>${rows}`
+      : `<div class="empty"><h3>No cases match</h3><p>${S.listScope === 'mine' && !S.cases.some(isMine) ? 'You have not added a case yet.' : 'Try a different search or clear the filters.'}</p>${S.listScope === 'mine' ? `<a class="btn primary" href="#/new">${ICON.plus}New case</a>` : ''}</div>`}</div>`;
+}
+
+/* ---- Cause list (all hearings, numbered per day like a court cause list) ---- */
+function causeListView(){
+  const t = todayISO();
+  const groups = groupByDate(agendaItems(S.causeScope, t, null));
+  const body = groups.length ? groups.map(g => `<div class="day">${dayHead(g.date, g.items.length, g.items.length === 1 ? 'hearing' : 'hearings')}
+     ${g.items.map((it, i) => { const p = prof(it.c.owner_id); return `<a class="row" href="#/case/${it.c.id}"><span class="no tnum">${i+1}.</span>
+       <span><span class="t" style="font-family:var(--serif);font-weight:400;font-size:16px">${esc(it.c.title)}</span><div class="m">${esc(it.c.suit_number)} · ${esc(it.c.court)}${it.c.judge ? ' · ' + esc(it.c.judge) : ''}</div></span>
+       <span class="r">${it.time ? `<b style="color:var(--ink)">${esc(it.time)}</b><br>` : ''}${isMine(it.c) ? '<span class="mine-dot">You</span>' : esc(p.full_name)}</span></a>`; }).join('')}</div>`).join('')
+    : `<div class="empty"><h3>No upcoming hearings</h3><p>Hearing dates added to cases appear here.</p></div>`;
+  return `<div class="phead"><div><h1>Cause list</h1><p>Upcoming hearings, by sitting day.</p></div>
+      <div class="seg" role="group" aria-label="Whose hearings"><button class="${S.causeScope === 'all' ? 'on' : ''}" data-act="cscope" data-v="all">Everyone</button><button class="${S.causeScope === 'mine' ? 'on' : ''}" data-act="cscope" data-v="mine">Mine</button></div></div>
+    <section class="panel">${body}</section>`;
+}
+
+/* ---- Case file ---- */
+async function caseView(id){
+  const c = caseById(id);
+  if (!c) return `<div class="empty"><h3>Case not found</h3><p>It may have been deleted by its owner.</p><a class="btn" href="#/cases">Back to cases</a></div>`;
+  const notes = (await API.notesFor(id)).sort((a,b) => b.created_at.localeCompare(a.created_at));
+  const plan = S.plan.filter(p => p.case_id === id).sort((a,b) => (a.done - b.done) || (a.due_date || '9999').localeCompare(b.due_date || '9999'));
+  const mine = isMine(c), owner = prof(c.owner_id), t = todayISO();
+  const ribbon = mine ? '' : `<div class="ribbon">${ICON.lock}<span>You are viewing <b>${esc(owner.full_name)}</b>’s case file. Only they can edit it. You can add your own notes below.</span></div>`;
+  const dd = (k, v, cls='') => `<div><dt>${k}</dt><dd class="${cls}">${v || '<span class="muted">—</span>'}</dd></div>`;
+  const hearing = c.next_hearing && c.status !== 'Closed' ? `${esc(fmtDate(c.next_hearing,{weekday:'short', day:'numeric', month:'long', year:'numeric'}))}${c.hearing_time ? ', ' + esc(c.hearing_time) : ''}<br><span style="font-weight:400;font-size:13px">${esc(relDay(c.next_hearing))}</span>` : '';
+
+  const planList = plan.length ? `<ul class="plan">${plan.map(p => { const od = !p.done && p.due_date && p.due_date < t;
+      return `<li class="${p.done ? 'done' : ''}"><input type="checkbox" ${p.done ? 'checked' : ''} ${mine ? `data-act="toggle-plan" data-id="${p.id}"` : 'disabled'} aria-label="Mark “${esc(p.title)}” as done">
+        <div><div class="pt">${esc(p.title)}</div><div class="pm"><span class="kind">${esc(p.kind)}</span>${p.due_date ? `<span class="${od ? 'od' : ''}">${od ? 'Overdue · ' : ''}Due ${esc(fmtDate(p.due_date))}</span>` : 'No due date'}</div></div>
+        ${mine ? `<button class="btn ghost sm" data-act="del-plan" data-id="${p.id}" aria-label="Delete plan step">Remove</button>` : '<span></span>'}</li>`; }).join('')}</ul>`
+    : `<p class="prose blank">${mine ? 'No plan steps yet. Add what needs to happen before the next hearing.' : 'No plan steps yet.'}</p>`;
+  const addPlan = mine ? `<form class="addplan" data-form="plan" data-case="${c.id}">
+      <input class="inp" name="title" placeholder="Next step, e.g. File witness statements" required aria-label="Plan step">
+      <select class="inp" name="kind" aria-label="Type">${KINDS.map(k => `<option>${k}</option>`).join('')}</select>
+      <input class="inp" type="date" name="due_date" aria-label="Due date" value="${esc(addDays(t, 3))}">
+      <button class="btn dark" type="submit">Add step</button></form>` : '';
+
+  const noteList = notes.length ? notes.map(n => { const p = prof(n.owner_id), me = isMine(n);
+      return `<article class="note ${me ? 'mine' : ''}" data-note="${n.id}"><header>${avatar(p)}<b>${me ? 'You' : esc(p.full_name)}</b>${n.owner_id === c.owner_id ? '<span class="muted" style="font-size:12.5px">case owner</span>' : ''}<span class="when">${esc(fmtWhen(n.created_at))}${n.updated_at && n.updated_at.slice(0,16) !== n.created_at.slice(0,16) ? ' · edited' : ''}</span></header>
+        <p>${esc(n.body)}</p>${me ? `<div class="acts"><button class="btn ghost sm" data-act="edit-note" data-id="${n.id}">Edit</button><button class="btn ghost sm" data-act="del-note" data-id="${n.id}">Delete</button></div>` : ''}</article>`; }).join('')
+    : '<p class="prose blank">No notes yet.</p>';
+
+  return `${ribbon}<a class="btn ghost sm" href="#/cases" style="margin-left:-8px">← All cases</a>
+    <section class="jacket">
+      <div class="tab">${avatar(owner)}${mine ? 'Your case' : esc(owner.full_name)}</div>
+      <div class="suitno tnum">Suit No. ${esc(c.suit_number || '—')}</div>
+      <h1>${esc(c.title)}</h1>
+      <div class="court">${esc(c.court)}${c.judge ? ' · ' + esc(c.judge) : ''}</div>
+      <dl class="jgrid">
+        ${dd('Next hearing', hearing, 'hear')}${dd('Status', `<span class="status ${esc(c.status)}">${esc(c.status)}</span>`)}
+        ${dd('Our client', c.client ? `${esc(c.client)}<br><span class="muted" style="font-size:13px">${esc(c.client_role)}</span>` : '')}${dd('Other side', esc(c.opposing_party))}
+        ${dd('Type', esc(c.case_type))}${dd('Lawyer', `${esc(owner.full_name)}<br><span class="muted" style="font-size:13px">${esc(owner.firm)}</span>`)}
+        ${dd('Opened', esc(fmtDate(c.created_at.slice(0,10),{day:'numeric', month:'short', year:'numeric'})))}${dd('Last updated', esc(fmtWhen(c.updated_at)))}
+      </dl>
+      ${mine ? `<div class="jactions"><a class="btn" href="#/case/${c.id}/edit">Edit case details</a><button class="btn danger" data-act="del-case" data-id="${c.id}">Delete case</button></div>` : ''}
+    </section>
+    <div class="cols">
+      <div>
+        <section class="sec"><h2>Case summary</h2><p class="prose ${c.summary ? '' : 'blank'}">${esc(c.summary || 'No summary yet.')}</p></section>
+        <section class="sec"><h2>Strategy</h2><p class="prose ${c.strategy ? '' : 'blank'}">${esc(c.strategy || 'No strategy written yet.')}</p></section>
+        <section class="sec"><h2>Plan <small>${plan.filter(p => p.done).length} of ${plan.length} done</small></h2>${planList}${addPlan}</section>
+      </div>
+      <div>
+        <section class="sec"><h2>Notes <small>${notes.length}</small></h2>
+          <form class="addnote" data-form="note" data-case="${c.id}">
+            <textarea class="inp" name="body" required placeholder="${mine ? 'Add a note to this case' : 'Share a note with ' + esc(owner.full_name.split(' ')[0]) + ' — only you can edit it'}" aria-label="New note"></textarea>
+            <div class="row2"><span class="hint">Everyone in chambers can read notes.</span><button class="btn dark" type="submit">Add note</button></div>
+          </form>${noteList}</section>
+      </div>
+    </div>`;
+}
+
+/* ---- Case form ---- */
+function formView(c){
+  if (c && !isMine(c)) return `<div class="ribbon">${ICON.lock}<span>This case belongs to ${esc(prof(c.owner_id).full_name)}. Only they can edit it.</span></div><a class="btn" href="#/case/${c.id}">Back to the case</a>`;
+  const v = c || {status:'Open', case_type:'Civil', client_role:'Plaintiff'};
+  const opt = (arr, cur) => arr.map(x => `<option ${x === cur ? 'selected' : ''}>${esc(x)}</option>`).join('');
+  return `<div class="phead"><div><h1>${c ? 'Edit case details' : 'New case'}</h1><p>${c ? esc(c.title) : 'You will be the only one who can edit this case. Everyone in chambers can view it.'}</p></div></div>
+  <form class="form" data-form="case" data-id="${c ? c.id : ''}">
+    <div class="legend">The matter</div>
+    <label class="f c4">Case title<input class="inp" name="title" required value="${esc(v.title)}" placeholder="e.g. Adjei Holdings Ltd v. Coastal Cement Co. Ltd" autofocus></label>
+    <label class="f c2">Suit number<input class="inp" name="suit_number" value="${esc(v.suit_number)}" placeholder="e.g. CM/BFS/0412/2026"></label>
+    <label class="f c3">Court<input class="inp" name="court" list="courts" value="${esc(v.court)}" placeholder="Choose or type a court"><datalist id="courts">${COURTS.map(x => `<option value="${esc(x)}">`).join('')}</datalist></label>
+    <label class="f c3">Judge<input class="inp" name="judge" value="${esc(v.judge)}"></label>
+    <label class="f c2">Type<select class="inp" name="case_type">${opt(TYPES, v.case_type)}</select></label>
+    <label class="f c2">Status<select class="inp" name="status">${opt(STATUSES, v.status)}</select></label>
+    <div class="c2"></div>
+    <div class="legend">Parties</div>
+    <label class="f c3">Our client<input class="inp" name="client" value="${esc(v.client)}"></label>
+    <label class="f c3">Client is the<select class="inp" name="client_role">${opt(ROLES, v.client_role)}</select></label>
+    <label class="f c6">Other side<input class="inp" name="opposing_party" value="${esc(v.opposing_party)}"></label>
+    <div class="legend">Next hearing</div>
+    <label class="f c3">Date<input class="inp" type="date" name="next_hearing" value="${esc(v.next_hearing || '')}"></label>
+    <label class="f c3">Time<input class="inp" type="time" name="hearing_time" value="${esc(v.hearing_time || '')}"></label>
+    <div class="legend">Your plan</div>
+    <label class="f c6">Case summary<textarea class="inp" name="summary" placeholder="What the case is about, in a few lines">${esc(v.summary)}</textarea></label>
+    <label class="f c6">Strategy<textarea class="inp" name="strategy" placeholder="Theory of the case, key evidence, what the other side will argue">${esc(v.strategy)}</textarea><span class="hint">Add individual to-dos as plan steps on the case page.</span></label>
+    <div class="formacts"><a class="btn" href="${c ? '#/case/' + c.id : '#/cases'}">Cancel</a><button class="btn primary" type="submit">${c ? 'Save changes' : 'Create case'}</button></div>
+  </form>`;
+}
+
+/* =====================================================================
+   EVENTS
+   ===================================================================== */
+const confirmDo = msg => window.confirm(msg);
+async function guard(fn, okMsg){ try { await fn(); if (okMsg) toast(okMsg); } catch(e) { toast(e.message || 'Something went wrong.', true); } }
+
+document.addEventListener('click', async e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const act = b.dataset.act, id = b.dataset.id;
+  if (act === 'toggle-plan') return; // handled on change
+  e.preventDefault();
+  if (act === 'signout') { await API.signOut(); S.me = null; location.hash = '#/'; render(); }
+  else if (act === 'reset-demo') { if (confirmDo('Reset the demo to its sample data? Your changes in this browser will be lost.')) { DemoStore.reset(); toast('Demo reset'); render(); } }
+  else if (act === 'reload') render();
+  else if (act === 'auth-mode') { S.authMode = b.dataset.m; render(); }
+  else if (act === 'demo-as') { S.me = await DemoStore.signInAs(id); location.hash = '#/dashboard'; render(); }
+  else if (act === 'scope') { S.listScope = b.dataset.v; render(); }
+  else if (act === 'cscope') { S.causeScope = b.dataset.v; render(); }
+  else if (act === 'del-case') { if (confirmDo('Delete this case with all its plan steps and notes? This cannot be undone.')) await guard(async () => { await API.deleteCase(id); location.hash = '#/cases'; }, 'Case deleted'); }
+  else if (act === 'del-plan') await guard(async () => { await API.deletePlan(id); await render(); }, 'Step removed');
+  else if (act === 'del-note') { if (confirmDo('Delete this note?')) await guard(async () => { await API.deleteNote(id); await render(); }, 'Note deleted'); }
+  else if (act === 'edit-note') {
+    const art = document.querySelector(`[data-note="${id}"]`); const p = art.querySelector('p'); const body = p.textContent;
+    art.querySelector('.acts').remove();
+    p.outerHTML = `<form data-form="edit-note" data-id="${id}"><textarea class="inp" name="body" required>${esc(body)}</textarea>
+      <div class="acts"><button class="btn dark sm" type="submit">Save note</button><button class="btn ghost sm" type="button" data-act="reload">Cancel</button></div></form>`;
+    art.querySelector('textarea').focus();
+  }
+});
+
+document.addEventListener('change', async e => {
+  const el = e.target;
+  if (el.dataset.act === 'toggle-plan') await guard(async () => { await API.updatePlan(el.dataset.id, {done: el.checked}); await render(); }, el.checked ? 'Step done' : 'Step reopened');
+  else if (el.dataset.input === 'fStatus' || el.dataset.input === 'fCourt') { S[el.dataset.input] = el.value; render(); }
+});
+document.addEventListener('input', e => {
+  const el = e.target;
+  if (el.dataset.input === 'q') { S.q = el.value; clearTimeout(S._qt); S._qt = setTimeout(async () => { const pos = el.selectionStart; await render(); const n = $('[data-input="q"]'); if (n) { n.focus(); n.setSelectionRange(pos, pos); } }, 220); }
+});
+
+document.addEventListener('submit', async e => {
+  const f = e.target; if (!f.dataset.form) return; e.preventDefault();
+  const data = Object.fromEntries(new FormData(f).entries());
+  const btn = f.querySelector('[type=submit]'); if (btn) btn.disabled = true;
+  const done = () => { if (btn) btn.disabled = false; };
+  const kind = f.dataset.form;
+  if (kind === 'signin' || kind === 'signup') {
+    const msg = $('#auth-msg');
+    try {
+      if (kind === 'signin') S.me = await API.signIn(data.email, data.password);
+      else { const r = await API.signUp(data.email, data.password, data.full_name.trim(), (data.firm || '').trim());
+        if (r.confirm) { msg.innerHTML = '<div class="info">Account created. Check your email for the confirmation link, then sign in.</div>'; done(); return; }
+        S.me = r.user; }
+      location.hash = '#/dashboard'; render();
+    } catch(err) { msg.innerHTML = `<div class="err">${esc(err.message)}</div>`; done(); }
+    return;
+  }
+  if (kind === 'case') {
+    await guard(async () => { const saved = await API.saveCase({...data, id: f.dataset.id || undefined}); location.hash = '#/case/' + saved.id; }, f.dataset.id ? 'Changes saved' : 'Case created');
+    done(); return;
+  }
+  if (kind === 'plan') { await guard(async () => { await API.addPlan({case_id:f.dataset.case, title:data.title.trim(), kind:data.kind, due_date:data.due_date || null}); await render(); }, 'Step added'); done(); return; }
+  if (kind === 'note') { await guard(async () => { await API.addNote(f.dataset.case, data.body.trim()); await render(); }, 'Note added'); done(); return; }
+  if (kind === 'edit-note') { await guard(async () => { await API.updateNote(f.dataset.id, data.body.trim()); await render(); }, 'Note saved'); done(); return; }
+});
+
+boot();
+</script>
+</body>
+</html>
